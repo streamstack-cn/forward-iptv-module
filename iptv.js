@@ -1,7 +1,7 @@
 WidgetMetadata = {
   id: "forward.iptv.v11",
   title: "IPTV 直播",
-  version: "1.0.8",
+  version: "1.0.9",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
@@ -218,7 +218,7 @@ function buildChannelItem(channel, params) {
   return {
     id: makeChannelId(channel),
     type: "url",
-    mediaType: "movie",
+    mediaType: "tv",
     title: channel.title,
     coverUrl: channel.logo,
     posterPath: channel.logo,
@@ -438,8 +438,7 @@ function formatEPGDescription(channelTitle, groupName, epg) {
 }
 
 function buildDetailDescription(currentProgram, channelTitle, groupName, epg) {
-  var header = currentProgram + "\n节目单\n\n";
-  return header + formatEPGDescription(channelTitle, groupName, epg);
+  return "正在播放：" + currentProgram + "\n\n查看节目单";
 }
 
 async function loadResource(params) {
@@ -478,6 +477,39 @@ async function loadDetail(link) {
     );
 
     var params = buildParamsFromData(data);
+    
+    var episodeItems = [];
+    if (epg) {
+      if (epg.past) {
+        for (var pIdx = 0; pIdx < epg.past.length; pIdx++) {
+          episodeItems.push({
+            id: makeChannelId(channel) + "_p_" + pIdx,
+            type: "url",
+            title: formatTime(epg.past[pIdx].start) + " " + epg.past[pIdx].title,
+            link: link
+          });
+        }
+      }
+      if (epg.current) {
+        episodeItems.push({
+          id: makeChannelId(channel) + "_c",
+          type: "url",
+          title: "[直播中] " + formatTime(epg.current.start) + " " + epg.current.title,
+          link: link
+        });
+      }
+      if (epg.upcoming) {
+        for (var uIdx = 0; uIdx < epg.upcoming.length; uIdx++) {
+          episodeItems.push({
+            id: makeChannelId(channel) + "_u_" + uIdx,
+            type: "url",
+            title: formatTime(epg.upcoming[uIdx].start) + " " + epg.upcoming[uIdx].title,
+            link: link
+          });
+        }
+      }
+    }
+
     var relatedItems = [];
     try {
       var channels = await getChannels(params, false);
@@ -495,15 +527,17 @@ async function loadDetail(link) {
     return {
       id: makeChannelId(channel),
       type: "url",
-      mediaType: "movie",
+      mediaType: "tv",
       title: channel.title || channel.name,
       link: link,
       posterPath: channel.logo,
+      backdropPath: " ",
       playerType: "system",
       description: description,
-      genreTitle: currentProgram,
+      genreTitle: channel.group,
       seriesName: channel.title || channel.name,
-      episodeName: "节目单",
+      episodeName: currentProgram,
+      episodeItems: episodeItems,
       relatedItems: relatedItems
     };
   } catch (e) {
@@ -512,15 +546,16 @@ async function loadDetail(link) {
     return {
       id: makeChannelId({ id: data.id, url: data.c }),
       type: "url",
-      mediaType: "movie",
+      mediaType: "tv",
       title: fallbackTitle,
       link: link,
       posterPath: data.l,
+      backdropPath: " ",
       playerType: "system",
-      description: fallbackTitle + "\n节目单\n\n节目单暂时无法加载，请稍后重试。",
-      genreTitle: "暂无节目信息",
+      description: "正在播放：暂无节目信息\n\n查看节目单",
+      genreTitle: "未分类",
       seriesName: fallbackTitle,
-      episodeName: "节目单"
+      episodeName: "暂无节目信息"
     };
   }
 }
