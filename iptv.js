@@ -1,7 +1,7 @@
 WidgetMetadata = {
   id: "forward.iptv.v11",
   title: "IPTV 直播",
-  version: "1.0.12",
+  version: "1.0.13",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
@@ -108,13 +108,6 @@ function cleanProgramName(title) {
     .replace(/[-_]?\d{4}[-]\d{1,4}/g, "")
     .trim();
 }
-
-function withPlayToken(url) {
-  if (!url) return url;
-  var sep = url.indexOf("#") === -1 ? "#" : "&";
-  return url + sep + "_fwd=" + Date.now();
-}
-
 
 async function fetchM3UContent(url, username, password) {
   if (!url) throw new Error("请先在模块设置中填写 M3U 订阅链接");
@@ -231,7 +224,6 @@ function buildChannelItem(channel, params) {
     title: channel.title,
     coverUrl: channel.logo,
     posterPath: channel.logo,
-    backdropPath: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
     description: channel.group,
     link: encodeLink(linkData)
   };
@@ -402,54 +394,41 @@ function getCurrentProgramTitle(epg) {
 }
 
 function formatEPGDescription(channelTitle, groupName, epg) {
-  var lines = [];
+  if (!epg || (!epg.current && epg.upcoming.length === 0 && epg.past.length === 0)) {
+    return "今日暂无节目单数据";
+  }
 
-  lines.push("────────────────────────");
-  lines.push("  " + channelTitle + "  ·  " + (groupName || "未分类"));
-  lines.push("────────────────────────");
+  var lines = [];
+  lines.push("【今日节目单】");
   lines.push("");
 
+  if (epg.past && epg.past.length > 0) {
+    var pStart = Math.max(0, epg.past.length - 8);
+    for (var j = pStart; j < epg.past.length; j++) {
+      var p = epg.past[j];
+      lines.push(formatTime(p.start) + "  " + cleanProgramName(p.title) + "  [已播放]");
+    }
+  }
+
   if (epg.current) {
-    var cTime = formatTime(epg.current.start) + " - " + formatTime(epg.current.stop);
-    lines.push("[ LIVE ]  " + cTime);
-    lines.push(cleanProgramName(epg.current.title));
-    lines.push("");
+    lines.push(formatTime(epg.current.start) + "  " + cleanProgramName(epg.current.title) + "  [正在直播] 👈");
   } else {
-    lines.push("[ LIVE ]  当前时段暂无匹配节目");
-    lines.push("");
+    lines.push("当前时段暂无匹配节目");
   }
 
   if (epg.upcoming && epg.upcoming.length > 0) {
-    lines.push("【即将播出】");
-    var limit = Math.min(epg.upcoming.length, 15);
+    var limit = Math.min(epg.upcoming.length, 12);
     for (var i = 0; i < limit; i++) {
-      var p = epg.upcoming[i];
-      lines.push("  " + formatTime(p.start) + "  " + cleanProgramName(p.title));
+      var u = epg.upcoming[i];
+      lines.push(formatTime(u.start) + "  " + cleanProgramName(u.title) + "  [未播]");
     }
-    if (epg.upcoming.length > limit) {
-      lines.push("  ... 还有 " + (epg.upcoming.length - limit) + " 档");
-    }
-    lines.push("");
-  }
-
-  if (epg.past && epg.past.length > 0) {
-    lines.push("【已播出】");
-    var pStart = Math.max(0, epg.past.length - 10);
-    for (var j = pStart; j < epg.past.length; j++) {
-      var p = epg.past[j];
-      lines.push("  " + formatTime(p.start) + "  " + cleanProgramName(p.title));
-    }
-  }
-
-  if (!epg.current && epg.upcoming.length === 0 && epg.past.length === 0) {
-    lines.push("今日暂无节目单数据");
   }
 
   return lines.join("\n");
 }
 
 function buildDetailDescription(currentProgram, channelTitle, groupName, epg) {
-  var header = "正在播放：" + cleanProgramName(currentProgram) + "\n\n查看节目单\n\n";
+  var header = "【正在播放】\n" + cleanProgramName(currentProgram) + "\n\n";
   return header + formatEPGDescription(channelTitle, groupName, epg);
 }
 
@@ -466,7 +445,10 @@ async function loadResource(params) {
     {
       name: channel.title || channel.name || "直播",
       description: (channel.group || "直播") + " · 实时流",
-      url: withPlayToken(streamUrl)
+      url: streamUrl,
+      headers: {
+        "Connection": "close"
+      }
     }
   ];
 }
@@ -507,7 +489,6 @@ async function loadDetail(link) {
       title: channel.title || channel.name,
       link: link,
       posterPath: channel.logo,
-      backdropPath: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
       playerType: "system",
       description: description,
       genreTitle: currentProgram,
@@ -523,7 +504,6 @@ async function loadDetail(link) {
       title: fallbackTitle,
       link: link,
       posterPath: data.l,
-      backdropPath: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
       playerType: "system",
       description: "正在播放：暂无节目信息\n\n查看节目单",
       genreTitle: "未分类",
