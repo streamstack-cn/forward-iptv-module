@@ -1,7 +1,7 @@
 WidgetMetadata = {
   id: "forward.iptv.v11",
   title: "IPTV 直播",
-  version: "1.0.9",
+  version: "1.0.10",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
@@ -98,6 +98,14 @@ function normalizeName(name) {
     .replace(/\s+/g, "")
     .replace(/-/g, "")
     .toUpperCase();
+}
+
+function cleanProgramName(title) {
+  if (!title) return "";
+  return title
+    .replace(/[-_]?\d{4}[-年]?\d{1,2}[-月]?\d{1,2}日?/g, "")
+    .replace(/[-_]?\d{4}[-]\d{1,4}/g, "")
+    .trim();
 }
 
 function withPlayToken(url) {
@@ -218,7 +226,7 @@ function buildChannelItem(channel, params) {
   return {
     id: makeChannelId(channel),
     type: "url",
-    mediaType: "tv",
+    mediaType: "movie",
     title: channel.title,
     coverUrl: channel.logo,
     posterPath: channel.logo,
@@ -400,20 +408,21 @@ function formatEPGDescription(channelTitle, groupName, epg) {
   lines.push("");
 
   if (epg.current) {
-    lines.push("[ LIVE ]  " + formatTime(epg.current.start) + " - " + formatTime(epg.current.stop));
-    lines.push(epg.current.title);
+    var cTime = formatTime(epg.current.start) + " - " + formatTime(epg.current.stop);
+    lines.push("[ LIVE ]  " + cTime);
+    lines.push(cleanProgramName(epg.current.title));
     lines.push("");
   } else {
     lines.push("[ LIVE ]  当前时段暂无匹配节目");
     lines.push("");
   }
 
-  if (epg.upcoming.length > 0) {
-    lines.push("即将播出");
-    var limit = Math.min(epg.upcoming.length, 12);
-    for (var u = 0; u < limit; u++) {
-      var next = epg.upcoming[u];
-      lines.push("  " + formatTime(next.start) + "    " + next.title);
+  if (epg.upcoming && epg.upcoming.length > 0) {
+    lines.push("【即将播出】");
+    var limit = Math.min(epg.upcoming.length, 15);
+    for (var i = 0; i < limit; i++) {
+      var p = epg.upcoming[i];
+      lines.push("  " + formatTime(p.start) + "  " + cleanProgramName(p.title));
     }
     if (epg.upcoming.length > limit) {
       lines.push("  ... 还有 " + (epg.upcoming.length - limit) + " 档");
@@ -421,12 +430,12 @@ function formatEPGDescription(channelTitle, groupName, epg) {
     lines.push("");
   }
 
-  if (epg.past.length > 0) {
-    lines.push("已播出");
-    var pastStart = Math.max(0, epg.past.length - 4);
-    for (var p = pastStart; p < epg.past.length; p++) {
-      var prev = epg.past[p];
-      lines.push("  " + formatTime(prev.start) + "    " + prev.title);
+  if (epg.past && epg.past.length > 0) {
+    lines.push("【已播出】");
+    var pStart = Math.max(0, epg.past.length - 10);
+    for (var j = pStart; j < epg.past.length; j++) {
+      var p = epg.past[j];
+      lines.push("  " + formatTime(p.start) + "  " + cleanProgramName(p.title));
     }
   }
 
@@ -438,7 +447,8 @@ function formatEPGDescription(channelTitle, groupName, epg) {
 }
 
 function buildDetailDescription(currentProgram, channelTitle, groupName, epg) {
-  return "正在播放：" + currentProgram + "\n\n查看节目单";
+  var header = "正在播放：" + cleanProgramName(currentProgram) + "\n\n查看节目单\n\n";
+  return header + formatEPGDescription(channelTitle, groupName, epg);
 }
 
 async function loadResource(params) {
@@ -468,48 +478,12 @@ async function loadDetail(link) {
     if (!channel.url) channel.url = data.c;
 
     var epg = await getEPGPrograms(data.e, channel.id, channel.name, channel.title);
-    var currentProgram = getCurrentProgramTitle(epg);
-    var description = buildDetailDescription(
-      currentProgram,
-      channel.title || channel.name,
-      channel.group,
-      epg
-    );
+    var currentProgram = "暂无节目信息";
+    if (epg && epg.current) currentProgram = cleanProgramName(epg.current.title);
+
+    var description = buildDetailDescription(currentProgram, channel.title || channel.name, channel.group, epg);
 
     var params = buildParamsFromData(data);
-    
-    var episodeItems = [];
-    if (epg) {
-      if (epg.past) {
-        for (var pIdx = 0; pIdx < epg.past.length; pIdx++) {
-          episodeItems.push({
-            id: makeChannelId(channel) + "_p_" + pIdx,
-            type: "url",
-            title: formatTime(epg.past[pIdx].start) + " " + epg.past[pIdx].title,
-            link: link
-          });
-        }
-      }
-      if (epg.current) {
-        episodeItems.push({
-          id: makeChannelId(channel) + "_c",
-          type: "url",
-          title: "[直播中] " + formatTime(epg.current.start) + " " + epg.current.title,
-          link: link
-        });
-      }
-      if (epg.upcoming) {
-        for (var uIdx = 0; uIdx < epg.upcoming.length; uIdx++) {
-          episodeItems.push({
-            id: makeChannelId(channel) + "_u_" + uIdx,
-            type: "url",
-            title: formatTime(epg.upcoming[uIdx].start) + " " + epg.upcoming[uIdx].title,
-            link: link
-          });
-        }
-      }
-    }
-
     var relatedItems = [];
     try {
       var channels = await getChannels(params, false);
@@ -527,17 +501,16 @@ async function loadDetail(link) {
     return {
       id: makeChannelId(channel),
       type: "url",
-      mediaType: "tv",
-      title: channel.title || channel.name,
+      mediaType: "movie",
+      title: "正在播放：" + currentProgram,
       link: link,
       posterPath: channel.logo,
       backdropPath: " ",
       playerType: "system",
       description: description,
-      genreTitle: channel.group,
+      genreTitle: currentProgram,
       seriesName: channel.title || channel.name,
       episodeName: currentProgram,
-      episodeItems: episodeItems,
       relatedItems: relatedItems
     };
   } catch (e) {
@@ -546,8 +519,8 @@ async function loadDetail(link) {
     return {
       id: makeChannelId({ id: data.id, url: data.c }),
       type: "url",
-      mediaType: "tv",
-      title: fallbackTitle,
+      mediaType: "movie",
+      title: "正在播放：暂无节目信息",
       link: link,
       posterPath: data.l,
       backdropPath: " ",
