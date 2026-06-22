@@ -1,20 +1,20 @@
-var WidgetMetadata = {
-  id: "forward.iptv.v4",
+WidgetMetadata = {
+  id: "forward.iptv.v5",
   title: "IPTV 直播",
   version: "1.0.0",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn",
-  description: "支持 EPG 和分组的 M3U 直播源。支持基本认证的 WebDAV 链接。",
+  description: "支持EPG和分组的M3U直播源。支持WebDAV链接。",
   modules: [
     {
       id: "loadList",
       title: "全部频道",
       functionName: "loadList",
       params: [
-        { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "https://wd.obdzr.com:8888/docker/iptv/Emby IPTV.m3u", description: "例如 https://wd.obdzr.com:8888/docker/iptv/Emby IPTV.m3u" },
-        { name: "username", title: "WebDAV 账号", type: "input", value: "", description: "选填，如果 M3U 链接需要认证则填写" },
-        { name: "password", title: "WebDAV 密码", type: "input", value: "", description: "选填，如果 M3U 链接需要认证则填写" },
+        { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "https://wd.obdzr.com:8888/docker/iptv/Emby IPTV.m3u" },
+        { name: "username", title: "WebDAV 账号", type: "input", value: "" },
+        { name: "password", title: "WebDAV 密码", type: "input", value: "" },
         { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "http://epg.51zmt.top:8000/e.xml" }
       ]
     }
@@ -60,14 +60,13 @@ function parseM3U(content) {
   return channels;
 }
 
-// 简单的 base64 编码，因为在 App 内不能直接用 Buffer
 var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
 function btoa(input) {
   var str = String(input);
   for (var block, charCode, idx = 0, map = chars, output = ''; str.charAt(idx | 0) || (map = '=', idx % 1); output += map.charAt(63 & block >> 8 - idx % 1 * 8)) {
     charCode = str.charCodeAt(idx += 3/4);
     if (charCode > 0xFF) {
-      throw new Error("'btoa' failed: The string to be encoded contains characters outside of the Latin1 range.");
+      throw new Error("'btoa' failed");
     }
     block = block << 8 | charCode;
   }
@@ -80,9 +79,8 @@ async function getChannels(url, username, password) {
   
   var content = "";
   if (url.indexOf("file://") === 0 || url.indexOf("/") === 0) {
-    throw new Error("M3U 当前只支持填写 http(s):// 开头的网络链接。");
+    throw new Error("M3U 当前只支持填写网络链接");
   } else {
-    // 对 URL 中的空格进行编码，避免群晖报错
     var encodeUrl = url.replace(/ /g, "%20");
     var headers = {};
     if (username && password) {
@@ -93,7 +91,7 @@ async function getChannels(url, username, password) {
   }
   
   if (content && content.indexOf('#EXTM3U') === -1 && content.indexOf('<html') !== -1) {
-    throw new Error("M3U 获取失败：返回了网页(HTML)而不是文件内容。请检查你的账号密码是否正确。");
+    throw new Error("M3U 获取失败：返回了网页");
   }
   
   m3uCache.data = parseM3U(content);
@@ -143,7 +141,7 @@ function formatTime(str) {
 }
 
 async function getEPGInfo(epgUrl, channelId) {
-  if (!epgUrl || !channelId) return { text: "未配置 EPG 或未匹配到台标 ID" };
+  if (!epgUrl || !channelId) return { text: "未配置 EPG" };
   try {
     var xml = "";
     if (epgCache.url === epgUrl && epgCache.xml) {
