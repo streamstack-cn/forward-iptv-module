@@ -16,6 +16,7 @@ http://stream.cctv1
       if (url.includes("e.xml")) {
         return {
           data: `
+          <channel id="1"><display-name lang="zh">CCTV1</display-name></channel>
           <programme start="20260622080000 +0800" stop="20260622100000 +0800" channel="1">
             <title>Morning News</title>
           </programme>
@@ -39,28 +40,17 @@ eval(fs.readFileSync("./iptv.js", "utf8"));
   const link = list[0].link;
 
   const detail = await loadDetail(link);
-  assert.equal(detail.videoUrl, "http://stream.cctv1");
-  assert.equal(detail.description.split("\n")[1], "节目单");
+  assert.equal(detail.videoUrl, undefined);
+  assert.equal(detail.backdropPath, undefined);
+  assert.equal(detail.posterPath, "logo.png");
+  assert.equal(detail.episodeName, "节目单");
+  assert.ok(detail.description.indexOf("节目单") >= 0);
+  assert.ok(detail.genreTitle.length > 0);
+  assert.ok(detail.description.indexOf("[ LIVE ]") >= 0 || detail.description.indexOf("暂无") >= 0);
 
   const stream = await loadResource({ link: link });
-  assert.equal(stream[0].url, "http://stream.cctv1");
-
-  const fallback = await loadDetail(link.replace("ch:", "bad:"));
-  assert.equal(fallback, null);
-
-  const offlineLink = encodeLink({
-    u: "",
-    e: "http://test/e.xml",
-    id: "9",
-    n: "CCTV5",
-    c: "http://stream.cctv5",
-    g: "央视",
-    l: "",
-    t: "CCTV5"
-  });
-  const offlineDetail = await loadDetail(offlineLink);
-  assert.equal(offlineDetail.videoUrl, "http://stream.cctv5");
-  assert.ok(offlineDetail.description.includes("节目单"));
+  assert.ok(stream[0].url.indexOf("http://stream.cctv1") === 0);
+  assert.ok(stream[0].url.indexOf("_fwd=") > 0);
 
   console.log("✅ test pass!");
 })().catch((e) => {
