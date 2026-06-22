@@ -15,13 +15,6 @@ WidgetMetadata = {
   ],
   modules: [
     {
-      id: "loadResource",
-      title: "直播流",
-      functionName: "loadResource",
-      type: "stream",
-      params: []
-    },
-    {
       id: "loadList",
       title: "全部频道",
       functionName: "loadList",
