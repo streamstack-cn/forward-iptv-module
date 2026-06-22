@@ -1,18 +1,18 @@
-WidgetMetadata = {
+var WidgetMetadata = {
   id: "forward.iptv.v4",
   title: "IPTV 直播",
   version: "1.0.0",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn",
-  description: "支持 EPG 和分组的 M3U 直播源。订阅链接支持填入在线 http(s):// 地址，也可以在手机 Forward App 的“本地文件”中选择文件，或直接填入 file:// 本地路径。",
+  description: "支持 EPG 和分组的 M3U 直播源。订阅链接支持填入在线 http(s):// 地址。",
   modules: [
     {
       id: "loadList",
       title: "全部频道",
       functionName: "loadList",
       params: [
-        { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "http://your-server-ip/iptv.m3u", description: "填入 http(s) 链接或 file:// 本地路径" },
+        { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "http://your-server-ip/iptv.m3u", description: "填入直链(Raw)地址" },
         { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "http://epg.51zmt.top:8000/e.xml" }
       ]
     }
@@ -63,13 +63,16 @@ async function getChannels(url) {
   if (m3uCache.url === url && m3uCache.data.length > 0) return m3uCache.data;
   
   var content = "";
-  // 如果是 file:// 开头的本地文件协议，尝试通过存储读取或是将其看作纯文本
-  // Forward Widget.http 其实是不支持 file:// 的。但考虑到后续扩展，我们拦截并给出提示。
   if (url.indexOf("file://") === 0 || url.indexOf("/") === 0) {
     throw new Error("M3U 当前只支持填写 http(s):// 开头的网络链接。若要使用本地 M3U，请在局域网内建一个文件服务或上传到私人网盘中。");
   } else {
     var res = await Widget.http.get(url, { allow_redirects: true });
     content = res.data;
+  }
+  
+  // 处理可能拿到了HTML（比如群晖分享页）而没有拿到真实内容的情况
+  if (content && content.indexOf('#EXTM3U') === -1 && content.indexOf('<html') !== -1) {
+    throw new Error("M3U 获取失败：链接返回了网页(HTML)而不是文件内容。如果你使用的是群晖或网盘分享链接，请确保提取的是“直接下载链接(直链/Raw)”而不是分享网页地址。");
   }
   
   m3uCache.data = parseM3U(content);
