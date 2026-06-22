@@ -1,12 +1,12 @@
 WidgetMetadata = {
-  id: "forward.iptv.v9",
+  id: "forward.iptv.v10",
   title: "IPTV 直播",
-  version: "1.0.3",
+  version: "1.0.4",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
   description: "M3U 直播源，支持 HTTP/HTTPS 与 WebDAV 认证，附带 EPG 节目单。",
-  detailCacheDuration: 0,
+  detailCacheDuration: 60,
   globalParams: [
     { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "" },
     { name: "username", title: "账号（选填）", type: "input", value: "" },
@@ -14,6 +14,13 @@ WidgetMetadata = {
     { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "http://epg.51zmt.top:8000/e.xml" }
   ],
   modules: [
+    {
+      id: "loadResource",
+      title: "直播流",
+      functionName: "loadResource",
+      type: "stream",
+      params: []
+    },
     {
       id: "loadList",
       title: "全部频道",
@@ -149,24 +156,35 @@ function buildParamsFromData(data) {
   };
 }
 
-async function resolveChannel(data, forceRefresh) {
-  var params = buildParamsFromData(data);
-  var channels = await getChannels(params, forceRefresh);
-  for (var i = 0; i < channels.length; i++) {
-    var c = channels[i];
-    if (data.c && c.url === data.c) return c;
-    if (data.id && c.id === data.id) return c;
-    if (data.t && c.title === data.t) return c;
-    if (data.n && c.name === data.n) return c;
-  }
+function channelFromData(data) {
   return {
-    id: data.id,
-    name: data.n,
-    title: data.t || data.n,
-    url: data.c,
-    logo: data.l,
+    id: data.id || "",
+    name: data.n || "",
+    title: data.t || data.n || "未知频道",
+    url: data.c || "",
+    logo: data.l || "",
     group: data.g || "未分类"
   };
+}
+
+async function resolveChannel(data, forceRefresh) {
+  var fallback = channelFromData(data);
+  if (!data.u) return fallback;
+
+  try {
+    var params = buildParamsFromData(data);
+    var channels = await getChannels(params, forceRefresh);
+    for (var i = 0; i < channels.length; i++) {
+      var c = channels[i];
+      if (data.c && c.url === data.c) return c;
+      if (data.id && c.id === data.id) return c;
+      if (data.t && c.title === data.t) return c;
+      if (data.n && c.name === data.n) return c;
+    }
+  } catch (e) {
+    console.error("[resolveChannel]", e.message || e);
+  }
+  return fallback;
 }
 
 function buildChannelItem(channel, params) {
@@ -242,62 +260,72 @@ function getNowStr() {
   );
 }
 
-async function getEPGPrograms(epgUrl, channelId, channelName) {
+function matchEPGChannel(channelId, channelName, channelTitle, xmlChannelId) {
+  if (!xmlChannelId) return false;
+  if (channelId && xmlChannelId === channelId) return true;
+  if (channelName && xmlChannelId === channelName) return true;
+  if (channelTitle && xmlChannelId === channelTitle) return true;
+  if (channelName && channelTitle && xmlChannelId === channelName) return true;
+  return false;
+}
+
+async function getEPGPrograms(epgUrl, channelId, channelName, channelTitle) {
   if (!epgUrl) return { current: null, upcoming: [], past: [] };
 
-  var xml = "";
-  if (epgCache.url === epgUrl && epgCache.xml) {
-    xml = epgCache.xml;
-  } else {
-    var res = await Widget.http.get(epgUrl, { allow_redirects: true });
-    xml = res.data;
-    epgCache.url = epgUrl;
-    epgCache.xml = xml;
-  }
-
-  var regex = /<programme\s+([^>]+)>([\s\S]*?)<\/programme>/g;
-  var match;
-  var programs = [];
-  while ((match = regex.exec(xml)) !== null) {
-    var attrs = match[1];
-    var inner = match[2];
-    var channelMatch = attrs.match(/channel="([^"]+)"/);
-    if (!channelMatch) continue;
-
-    var matched =
-      (channelId && channelMatch[1] === channelId) ||
-      (channelName && channelMatch[1] === channelName);
-    if (!matched) continue;
-
-    var startM = attrs.match(/start="([^"\s]+)/);
-    var stopM = attrs.match(/stop="([^"\s]+)/);
-    var titleM = inner.match(/<title[^>]*>([^<]+)<\/title>/);
-    if (startM && stopM && titleM) {
-      programs.push({ start: startM[1], stop: stopM[1], title: titleM[1] });
-    }
-  }
-
-  programs.sort(function(a, b) {
-    return a.start.localeCompare(b.start);
-  });
-
-  var nowStr = getNowStr();
-  var current = null;
-  var upcoming = [];
-  var past = [];
-
-  for (var i = 0; i < programs.length; i++) {
-    var p = programs[i];
-    if (nowStr >= p.start && nowStr <= p.stop) {
-      current = p;
-    } else if (p.start > nowStr) {
-      upcoming.push(p);
+  try {
+    var xml = "";
+    if (epgCache.url === epgUrl && epgCache.xml) {
+      xml = epgCache.xml;
     } else {
-      past.push(p);
+      var res = await Widget.http.get(epgUrl, { allow_redirects: true });
+      xml = res.data;
+      epgCache.url = epgUrl;
+      epgCache.xml = xml;
     }
-  }
 
-  return { current: current, upcoming: upcoming, past: past };
+    var regex = /<programme\s+([^>]+)>([\s\S]*?)<\/programme>/g;
+    var match;
+    var programs = [];
+    while ((match = regex.exec(xml)) !== null) {
+      var attrs = match[1];
+      var inner = match[2];
+      var channelMatch = attrs.match(/channel="([^"]+)"/);
+      if (!channelMatch) continue;
+      if (!matchEPGChannel(channelId, channelName, channelTitle, channelMatch[1])) continue;
+
+      var startM = attrs.match(/start="([^"\s]+)/);
+      var stopM = attrs.match(/stop="([^"\s]+)/);
+      var titleM = inner.match(/<title[^>]*>([^<]+)<\/title>/);
+      if (startM && stopM && titleM) {
+        programs.push({ start: startM[1], stop: stopM[1], title: titleM[1] });
+      }
+    }
+
+    programs.sort(function(a, b) {
+      return a.start.localeCompare(b.start);
+    });
+
+    var nowStr = getNowStr();
+    var current = null;
+    var upcoming = [];
+    var past = [];
+
+    for (var i = 0; i < programs.length; i++) {
+      var p = programs[i];
+      if (nowStr >= p.start && nowStr <= p.stop) {
+        current = p;
+      } else if (p.start > nowStr) {
+        upcoming.push(p);
+      } else {
+        past.push(p);
+      }
+    }
+
+    return { current: current, upcoming: upcoming, past: past };
+  } catch (e) {
+    console.error("[getEPGPrograms]", e.message || e);
+    return { current: null, upcoming: [], past: [] };
+  }
 }
 
 function getCurrentProgramTitle(epg) {
@@ -353,42 +381,75 @@ function formatEPGDescription(channelTitle, groupName, epg) {
   return lines.join("\n");
 }
 
+async function loadResource(params) {
+  params = params || {};
+  var data = decodeLink(params.link);
+  if (!data || !data.c) throw new Error("无法获取直播地址，请返回列表重新进入");
+
+  var channel = await resolveChannel(data, false);
+  var streamUrl = channel.url || data.c;
+  if (!streamUrl) throw new Error("未找到该频道的直播地址");
+
+  return [
+    {
+      name: channel.title || channel.name || "直播",
+      description: (channel.group || "直播") + " · 实时流",
+      url: streamUrl
+    }
+  ];
+}
+
 async function loadDetail(link) {
   var data = decodeLink(link);
-  if (!data) return null;
+  if (!data || !data.c) return null;
 
-  var channel = await resolveChannel(data, true);
-  if (!channel || !channel.url) return null;
-
-  var epg = await getEPGPrograms(data.e, channel.id, channel.name);
-  var description = formatEPGDescription(channel.title || channel.name, channel.group, epg);
-
-  var params = buildParamsFromData(data);
-  var relatedItems = [];
   try {
-    var channels = await getChannels(params);
-    for (var i = 0; i < channels.length; i++) {
-      var c = channels[i];
-      if (c.group !== channel.group) continue;
-      if (c.url === channel.url) continue;
-      relatedItems.push(buildChannelItem(c, params));
-      if (relatedItems.length >= 12) break;
-    }
-  } catch (e) {
-    relatedItems = [];
-  }
+    var channel = await resolveChannel(data, false);
+    if (!channel.url) channel.url = data.c;
 
-  return {
-    id: makeChannelId(channel),
-    type: "url",
-    title: channel.title || channel.name,
-    link: link,
-    posterPath: channel.logo,
-    backdropPath: channel.logo,
-    videoUrl: channel.url,
-    playerType: "system",
-    description: description,
-    genreTitle: channel.group,
-    relatedItems: relatedItems
-  };
+    var epg = await getEPGPrograms(data.e, channel.id, channel.name, channel.title);
+    var description = formatEPGDescription(channel.title || channel.name, channel.group, epg);
+
+    var params = buildParamsFromData(data);
+    var relatedItems = [];
+    try {
+      var channels = await getChannels(params, false);
+      for (var i = 0; i < channels.length; i++) {
+        var c = channels[i];
+        if (c.group !== channel.group) continue;
+        if (c.url === channel.url) continue;
+        relatedItems.push(buildChannelItem(c, params));
+        if (relatedItems.length >= 12) break;
+      }
+    } catch (e) {
+      relatedItems = [];
+    }
+
+    return {
+      id: makeChannelId(channel),
+      type: "url",
+      title: channel.title || channel.name,
+      link: link,
+      posterPath: channel.logo,
+      backdropPath: channel.logo,
+      videoUrl: channel.url,
+      playerType: "system",
+      description: description,
+      genreTitle: channel.group,
+      relatedItems: relatedItems
+    };
+  } catch (e) {
+    console.error("[loadDetail]", e.message || e);
+    return {
+      id: makeChannelId({ id: data.id, url: data.c }),
+      type: "url",
+      title: data.t || data.n,
+      link: link,
+      posterPath: data.l,
+      videoUrl: data.c,
+      playerType: "system",
+      description: (data.t || data.n || "直播") + "\n节目单\n\n节目单暂时无法加载",
+      genreTitle: data.g || "未分类"
+    };
+  }
 }
