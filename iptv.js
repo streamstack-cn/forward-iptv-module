@@ -1,7 +1,7 @@
 WidgetMetadata = {
   id: "forward.iptv.v11",
   title: "IPTV 直播",
-  version: "1.0.11",
+  version: "1.0.12",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
@@ -19,13 +19,14 @@ WidgetMetadata = {
       title: "直播流",
       functionName: "loadResource",
       type: "stream",
+      cacheDuration: 0,
       params: []
     },
     {
       id: "loadList",
       title: "全部频道",
       functionName: "loadList",
-      cacheDuration: 3600,
+      cacheDuration: 0,
       params: []
     }
   ],
@@ -230,7 +231,7 @@ function buildChannelItem(channel, params) {
     title: channel.title,
     coverUrl: channel.logo,
     posterPath: channel.logo,
-    backdropPath: " ",
+    backdropPath: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
     description: channel.group,
     link: encodeLink(linkData)
   };
@@ -503,11 +504,10 @@ async function loadDetail(link) {
       id: makeChannelId(channel),
       type: "url",
       mediaType: "movie",
-      title: "正在播放：" + currentProgram,
+      title: channel.title || channel.name,
       link: link,
       posterPath: channel.logo,
-      detailPoster: channel.logo,
-      backdropPath: " ",
+      backdropPath: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
       playerType: "system",
       description: description,
       genreTitle: currentProgram,
@@ -520,11 +520,10 @@ async function loadDetail(link) {
       id: makeChannelId({ id: data.id, url: data.c }),
       type: "url",
       mediaType: "movie",
-      title: "正在播放：暂无节目信息",
+      title: fallbackTitle,
       link: link,
       posterPath: data.l,
-      detailPoster: data.l,
-      backdropPath: " ",
+      backdropPath: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
       playerType: "system",
       description: "正在播放：暂无节目信息\n\n查看节目单",
       genreTitle: "未分类",
