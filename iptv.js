@@ -1,4 +1,4 @@
-WidgetMetadata = {
+var WidgetMetadata = {
   id: "forward.iptv.custom",
   title: "IPTV 直播",
   version: "1.0.0",
@@ -23,23 +23,34 @@ var m3uCache = { url: "", data: [] };
 var epgCache = { url: "", xml: "" };
 
 function parseM3U(content) {
-  const lines = content.split(/\r?\n/);
-  const channels = [];
-  let currentInfo = null;
+  var lines = content.split(/\r?\n/);
+  var channels = [];
+  var currentInfo = null;
 
-  for (const line of lines) {
-    if (line.startsWith('#EXTINF:')) {
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (line.indexOf('#EXTINF:') === 0) {
+      var idMatch = line.match(/tvg-id="([^"]+)"/);
+      var nameMatch = line.match(/tvg-name="([^"]+)"/);
+      var logoMatch = line.match(/tvg-logo="([^"]+)"/);
+      var groupMatch = line.match(/group-title="([^"]+)"/);
+      var parts = line.split(',');
+      var title = parts[parts.length - 1].trim();
+
       currentInfo = {
-        id: line.match(/tvg-id="([^"]+)"/)?.[1] || "",
-        name: line.match(/tvg-name="([^"]+)"/)?.[1] || "",
-        logo: line.match(/tvg-logo="([^"]+)"/)?.[1] || "",
-        group: line.match(/group-title="([^"]+)"/)?.[1] || "未分类",
-        title: line.split(',').pop().trim()
+        id: idMatch ? idMatch[1] : "",
+        name: nameMatch ? nameMatch[1] : "",
+        logo: logoMatch ? logoMatch[1] : "",
+        group: groupMatch ? groupMatch[1] : "未分类",
+        title: title
       };
-      if (!currentInfo.name) currentInfo.name = currentInfo.title;
-    } else if (line.trim() && !line.startsWith('#')) {
+      if (!currentInfo.name) {
+        currentInfo.name = currentInfo.title;
+      }
+    } else if (line.trim() !== "" && line.indexOf('#') !== 0) {
       if (currentInfo) {
-        channels.push({ ...currentInfo, url: line.trim() });
+        currentInfo.url = line.trim();
+        channels.push(currentInfo);
         currentInfo = null;
       }
     }
@@ -50,7 +61,7 @@ function parseM3U(content) {
 async function getChannels(url) {
   if (!url) throw new Error("请在模块设置中配置 M3U 订阅链接");
   if (m3uCache.url === url && m3uCache.data.length > 0) return m3uCache.data;
-  const res = await Widget.http.get(url, { allow_redirects: true });
+  var res = await Widget.http.get(url, { allow_redirects: true });
   m3uCache.data = parseM3U(res.data);
   m3uCache.url = url;
   return m3uCache.data;
@@ -63,24 +74,25 @@ function decodeLink(link) {
   return JSON.parse(decodeURIComponent(link.split(":")[1]));
 }
 
-async function loadList(params = {}) {
-  const channels = await getChannels(params.m3uUrl);
-  const groups = {};
-  channels.forEach(c => {
+async function loadList(params) {
+  if (!params) params = {};
+  var channels = await getChannels(params.m3uUrl);
+  var groups = {};
+  channels.forEach(function(c) {
     if (!groups[c.group]) groups[c.group] = [];
     groups[c.group].push(c);
   });
   
-  return Object.keys(groups).map(g => {
+  return Object.keys(groups).map(function(g) {
     return {
-      id: `group_${encodeURIComponent(g)}`,
+      id: "group_" + encodeURIComponent(g),
       type: "url", 
       title: g,
       mediaType: "tv",
-      childItems: groups[g].map(c => {
-         const linkData = { u: params.m3uUrl, e: params.epgUrl, id: c.id, n: c.name, c: c.url, g: c.group, l: c.logo, t: c.title };
+      childItems: groups[g].map(function(c) {
+         var linkData = { u: params.m3uUrl, e: params.epgUrl, id: c.id, n: c.name, c: c.url, g: c.group, l: c.logo, t: c.title };
          return {
-           id: `channel_${encodeURIComponent(c.url)}`,
+           id: "channel_" + encodeURIComponent(c.url),
            type: "url",
            title: c.title,
            posterPath: c.logo,
@@ -93,41 +105,55 @@ async function loadList(params = {}) {
 
 function formatTime(str) {
   if (!str) return "";
-  return `${str.substring(8, 10)}:${str.substring(10, 12)}`;
+  return str.substring(8, 10) + ":" + str.substring(10, 12);
 }
 
 async function getEPGInfo(epgUrl, channelId) {
   if (!epgUrl || !channelId) return { text: "未配置 EPG 或未匹配到台标 ID" };
   try {
-    let xml = "";
+    var xml = "";
     if (epgCache.url === epgUrl && epgCache.xml) {
       xml = epgCache.xml;
     } else {
-      const res = await Widget.http.get(epgUrl, { allow_redirects: true });
+      var res = await Widget.http.get(epgUrl, { allow_redirects: true });
       xml = res.data;
       epgCache.url = epgUrl;
       epgCache.xml = xml;
     }
-    const regex = /<programme\s+([^>]+)>([\s\S]*?)<\/programme>/g;
-    let match;
-    const programs = [];
+    var regex = /<programme\s+([^>]+)>([\s\S]*?)<\/programme>/g;
+    var match;
+    var programs = [];
     while ((match = regex.exec(xml)) !== null) {
-      const cMatch = match[1].match(/channel="([^"]+)"/);
+      var cMatch = match[1].match(/channel="([^"]+)"/);
       if (cMatch && cMatch[1] === channelId) {
-        const startM = match[1].match(/start="([^"\s]+)/);
-        const stopM = match[1].match(/stop="([^"\s]+)/);
-        const titleM = match[2].match(/<title[^>]*>([^<]+)<\/title>/);
-        if (startM && stopM && titleM) programs.push({ start: startM[1], stop: stopM[1], title: titleM[1] });
+        var startM = match[1].match(/start="([^"\s]+)/);
+        var stopM = match[1].match(/stop="([^"\s]+)/);
+        var titleM = match[2].match(/<title[^>]*>([^<]+)<\/title>/);
+        if (startM && stopM && titleM) {
+          programs.push({ start: startM[1], stop: stopM[1], title: titleM[1] });
+        }
       }
     }
     if (programs.length === 0) return { text: "今日暂无节目单" };
-    programs.sort((a, b) => a.start.localeCompare(b.start));
+    programs.sort(function(a, b) {
+      return a.start.localeCompare(b.start);
+    });
 
-    const now = new Date();
-    const cnDate = new Date(now.getTime() + (now.getTimezoneOffset() + 480) * 60000);
-    const nowStr = cnDate.getFullYear().toString() + (cnDate.getMonth()+1).toString().padStart(2, '0') + cnDate.getDate().toString().padStart(2, '0') + cnDate.getHours().toString().padStart(2, '0') + cnDate.getMinutes().toString().padStart(2, '0') + cnDate.getSeconds().toString().padStart(2, '0');
+    var now = new Date();
+    var cnDate = new Date(now.getTime() + (now.getTimezoneOffset() + 480) * 60000);
+    
+    function pad(n) { return n < 10 ? '0' + n : n; }
+    var nowStr = cnDate.getFullYear().toString() + 
+                 pad(cnDate.getMonth() + 1) + 
+                 pad(cnDate.getDate()) + 
+                 pad(cnDate.getHours()) + 
+                 pad(cnDate.getMinutes()) + 
+                 pad(cnDate.getSeconds());
 
-    let lines = programs.map(p => `[${formatTime(p.start)}] ${p.title} ${(nowStr >= p.start && nowStr <= p.stop) ? "👈 正在播出" : ""}`);
+    var lines = programs.map(function(p) {
+      var isPlaying = (nowStr >= p.start && nowStr <= p.stop);
+      return "[" + formatTime(p.start) + "] " + p.title + (isPlaying ? " 👈 正在播出" : "");
+    });
     return { text: lines.join("\n") };
   } catch(e) {
     return { text: "节目单加载失败" };
@@ -135,26 +161,33 @@ async function getEPGInfo(epgUrl, channelId) {
 }
 
 async function loadDetail(link) {
-  if (!link.startsWith("iptv:")) return null;
-  const data = decodeLink(link);
-  const epg = await getEPGInfo(data.e, data.id);
+  if (link.indexOf("iptv:") !== 0) return null;
+  var data = decodeLink(link);
+  var epg = await getEPGInfo(data.e, data.id);
   
-  let episodeItems = [];
+  var episodeItems = [];
   try {
-    const channels = await getChannels(data.u);
-    const siblings = channels.filter(c => c.group === data.g);
-    episodeItems = siblings.map(c => ({
-      id: `channel_${encodeURIComponent(c.url)}`,
-      title: c.title,
-      videoUrl: c.url,
-      posterPath: c.logo
-    }));
+    var channels = await getChannels(data.u);
+    var siblings = channels.filter(function(c) { return c.group === data.g; });
+    episodeItems = siblings.map(function(c) {
+      return {
+        id: "channel_" + encodeURIComponent(c.url),
+        title: c.title,
+        videoUrl: c.url,
+        posterPath: c.logo
+      };
+    });
   } catch(e) {
-    episodeItems = [{ id: `channel_${encodeURIComponent(data.c)}`, title: data.t || data.n, videoUrl: data.c, posterPath: data.l }];
+    episodeItems = [{ 
+      id: "channel_" + encodeURIComponent(data.c), 
+      title: data.t || data.n, 
+      videoUrl: data.c, 
+      posterPath: data.l 
+    }];
   }
 
   return {
-    id: `channel_${encodeURIComponent(data.c)}`,
+    id: "channel_" + encodeURIComponent(data.c),
     type: "url",
     title: data.t || data.n,
     link: link,
