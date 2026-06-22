@@ -5,14 +5,16 @@ var WidgetMetadata = {
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn",
-  description: "支持 EPG 和分组的 M3U 直播源。订阅链接支持填入在线 http(s):// 地址。",
+  description: "支持 EPG 和分组的 M3U 直播源。支持基本认证的 WebDAV 链接。",
   modules: [
     {
       id: "loadList",
       title: "全部频道",
       functionName: "loadList",
       params: [
-        { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "http://your-server-ip/iptv.m3u", description: "填入直链(Raw)地址" },
+        { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "https://wd.obdzr.com:8888/docker/iptv/Emby IPTV.m3u", description: "例如 https://wd.obdzr.com:8888/docker/iptv/Emby IPTV.m3u" },
+        { name: "username", title: "WebDAV 账号", type: "input", value: "", description: "选填，如果 M3U 链接需要认证则填写" },
+        { name: "password", title: "WebDAV 密码", type: "input", value: "", description: "选填，如果 M3U 链接需要认证则填写" },
         { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "http://epg.51zmt.top:8000/e.xml" }
       ]
     }
@@ -58,21 +60,40 @@ function parseM3U(content) {
   return channels;
 }
 
-async function getChannels(url) {
+// 简单的 base64 编码，因为在 App 内不能直接用 Buffer
+var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+function btoa(input) {
+  var str = String(input);
+  for (var block, charCode, idx = 0, map = chars, output = ''; str.charAt(idx | 0) || (map = '=', idx % 1); output += map.charAt(63 & block >> 8 - idx % 1 * 8)) {
+    charCode = str.charCodeAt(idx += 3/4);
+    if (charCode > 0xFF) {
+      throw new Error("'btoa' failed: The string to be encoded contains characters outside of the Latin1 range.");
+    }
+    block = block << 8 | charCode;
+  }
+  return output;
+}
+
+async function getChannels(url, username, password) {
   if (!url) throw new Error("请在模块设置中配置 M3U 订阅链接");
   if (m3uCache.url === url && m3uCache.data.length > 0) return m3uCache.data;
   
   var content = "";
   if (url.indexOf("file://") === 0 || url.indexOf("/") === 0) {
-    throw new Error("M3U 当前只支持填写 http(s):// 开头的网络链接。若要使用本地 M3U，请在局域网内建一个文件服务或上传到私人网盘中。");
+    throw new Error("M3U 当前只支持填写 http(s):// 开头的网络链接。");
   } else {
-    var res = await Widget.http.get(url, { allow_redirects: true });
+    // 对 URL 中的空格进行编码，避免群晖报错
+    var encodeUrl = url.replace(/ /g, "%20");
+    var headers = {};
+    if (username && password) {
+       headers["Authorization"] = "Basic " + btoa(username + ":" + password);
+    }
+    var res = await Widget.http.get(encodeUrl, { allow_redirects: true, headers: headers });
     content = res.data;
   }
   
-  // 处理可能拿到了HTML（比如群晖分享页）而没有拿到真实内容的情况
   if (content && content.indexOf('#EXTM3U') === -1 && content.indexOf('<html') !== -1) {
-    throw new Error("M3U 获取失败：链接返回了网页(HTML)而不是文件内容。如果你使用的是群晖或网盘分享链接，请确保提取的是“直接下载链接(直链/Raw)”而不是分享网页地址。");
+    throw new Error("M3U 获取失败：返回了网页(HTML)而不是文件内容。请检查你的账号密码是否正确。");
   }
   
   m3uCache.data = parseM3U(content);
@@ -89,7 +110,7 @@ function decodeLink(link) {
 
 async function loadList(params) {
   if (!params) params = {};
-  var channels = await getChannels(params.m3uUrl);
+  var channels = await getChannels(params.m3uUrl, params.username, params.password);
   var groups = {};
   channels.forEach(function(c) {
     if (!groups[c.group]) groups[c.group] = [];
@@ -103,7 +124,7 @@ async function loadList(params) {
       title: g,
       mediaType: "tv",
       childItems: groups[g].map(function(c) {
-         var linkData = { u: params.m3uUrl, e: params.epgUrl, id: c.id, n: c.name, c: c.url, g: c.group, l: c.logo, t: c.title };
+         var linkData = { u: params.m3uUrl, e: params.epgUrl, usr: params.username, pwd: params.password, id: c.id, n: c.name, c: c.url, g: c.group, l: c.logo, t: c.title };
          return {
            id: "channel_" + encodeURIComponent(c.url),
            type: "url",
@@ -180,7 +201,7 @@ async function loadDetail(link) {
   
   var episodeItems = [];
   try {
-    var channels = await getChannels(data.u);
+    var channels = await getChannels(data.u, data.usr, data.pwd);
     var siblings = channels.filter(function(c) { return c.group === data.g; });
     episodeItems = siblings.map(function(c) {
       return {
