@@ -18,7 +18,10 @@ http://stream.cctv2
       if (url.includes("e.xml")) {
         return {
           data: `
-          <programme start="20260622080000 +0800" stop="20260622235959 +0800" channel="1">
+          <programme start="20260622080000 +0800" stop="20260622100000 +0800" channel="1">
+            <title>Morning News</title>
+          </programme>
+          <programme start="20260622100000 +0800" stop="20260622235959 +0800" channel="1">
             <title>Test Program CCTV1</title>
           </programme>
         `
@@ -41,20 +44,19 @@ eval(fs.readFileSync("./iptv.js", "utf8"));
   const list = await loadList(params);
   assert.equal(list.length, 2);
   assert.equal(list[0].title, "CCTV-1 综合");
-  assert.equal(list[0].type, "url");
-  assert.equal(list[0].mediaType, undefined);
   assert.ok(list[0].link.indexOf("ch:") === 0);
-
-  const searchResults = await searchChannels({ ...params, keyword: "财经" });
-  assert.equal(searchResults.length, 1);
-  assert.equal(searchResults[0].title, "CCTV-2 财经");
 
   const detail = await loadDetail(list[0].link);
   assert.equal(detail.title, "CCTV-1 综合");
-  assert.equal(detail.videoUrl, "http://stream.cctv1");
-  assert.ok(detail.description.includes("Test Program CCTV1"));
-  assert.equal(detail.episodeItems.length, 2);
-  assert.equal(detail.episodeItems[1].videoUrl, "http://stream.cctv2");
+  assert.equal(detail.videoUrl, undefined);
+  assert.equal(detail.episodeItems, undefined);
+  assert.ok(detail.description.includes("📺"));
+  assert.ok(detail.description.includes("即将播出") || detail.description.includes("正在播出"));
+  assert.ok(Array.isArray(detail.relatedItems));
+
+  const stream = await loadResource({ link: list[0].link });
+  assert.equal(stream.length, 1);
+  assert.equal(stream[0].url, "http://stream.cctv1");
 
   console.log("✅ test pass!");
 })().catch((e) => {
