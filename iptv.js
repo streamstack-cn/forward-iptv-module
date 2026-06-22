@@ -1,7 +1,7 @@
 WidgetMetadata = {
   id: "forward.iptv.v11",
   title: "IPTV 直播",
-  version: "1.0.5",
+  version: "1.0.6",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
@@ -11,7 +11,7 @@ WidgetMetadata = {
     { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "" },
     { name: "username", title: "账号（选填）", type: "input", value: "" },
     { name: "password", title: "密码（选填）", type: "input", value: "" },
-    { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "http://epg.51zmt.top:8000/e.xml" }
+    { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "https://live.fanmingming.com/e.xml" }
   ],
   modules: [
     {
@@ -100,10 +100,6 @@ function normalizeName(name) {
     .toUpperCase();
 }
 
-function withPlayToken(url) {
-  if (!url) return url;
-  var sep = url.indexOf("?") >= 0 ? "&" : "?";
-  return url + sep + "_fwd=" + Date.now();
 }
 
 async function fetchM3UContent(url, username, password) {
@@ -217,6 +213,7 @@ function buildChannelItem(channel, params) {
   return {
     id: makeChannelId(channel),
     type: "url",
+    mediaType: "movie",
     title: channel.title,
     posterPath: channel.logo,
     description: channel.group,
@@ -452,7 +449,7 @@ async function loadResource(params) {
     {
       name: channel.title || channel.name || "直播",
       description: (channel.group || "直播") + " · 实时流",
-      url: withPlayToken(streamUrl)
+      url: streamUrl
     }
   ];
 }
@@ -492,9 +489,10 @@ async function loadDetail(link) {
     return {
       id: makeChannelId(channel),
       type: "url",
+      mediaType: "movie",
       title: channel.title || channel.name,
       link: link,
-      posterPath: channel.logo,
+      backdropPath: " ",
       playerType: "system",
       description: description,
       genreTitle: currentProgram,
@@ -508,9 +506,10 @@ async function loadDetail(link) {
     return {
       id: makeChannelId({ id: data.id, url: data.c }),
       type: "url",
+      mediaType: "movie",
       title: fallbackTitle,
       link: link,
-      posterPath: data.l,
+      backdropPath: " ",
       playerType: "system",
       description: fallbackTitle + "\n节目单\n\n节目单暂时无法加载，请稍后重试。",
       genreTitle: "暂无节目信息",
