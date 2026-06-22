@@ -8,7 +8,7 @@ WidgetMetadata = {
     { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "http://your-server-ip/iptv.m3u" },
     { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "http://epg.51zmt.top:8000/e.xml" }
   ],
-  modules: [{ id: "loadList", title: "全部频道", functionName: "loadList" }]
+  modules: [{ id: "loadList", title: "全部频道", functionName: "loadList", params: [] }]
 };
 
 let m3uCache = { url: "", data: [] };
