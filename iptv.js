@@ -1,7 +1,7 @@
 WidgetMetadata = {
   id: "forward.iptv.v11",
   title: "IPTV 直播",
-  version: "1.0.7",
+  version: "1.0.8",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
@@ -11,7 +11,7 @@ WidgetMetadata = {
     { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "" },
     { name: "username", title: "账号（选填）", type: "input", value: "" },
     { name: "password", title: "密码（选填）", type: "input", value: "" },
-    { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "https://live.fanmingming.com/e.xml" }
+    { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "http://epg.112114.xyz/pp.xml" }
   ],
   modules: [
     {
@@ -98,6 +98,12 @@ function normalizeName(name) {
     .replace(/\s+/g, "")
     .replace(/-/g, "")
     .toUpperCase();
+}
+
+function withPlayToken(url) {
+  if (!url) return url;
+  // 使用 hash(#) 而不是 query(?) 防止破坏严格的 IPTV/UDPXY 路由
+  return url + "#_fwd=" + Date.now();
 }
 
 
@@ -214,6 +220,7 @@ function buildChannelItem(channel, params) {
     type: "url",
     mediaType: "movie",
     title: channel.title,
+    coverUrl: channel.logo,
     posterPath: channel.logo,
     description: channel.group,
     link: encodeLink(linkData)
@@ -448,7 +455,7 @@ async function loadResource(params) {
     {
       name: channel.title || channel.name || "直播",
       description: (channel.group || "直播") + " · 实时流",
-      url: streamUrl
+      url: withPlayToken(streamUrl)
     }
   ];
 }
@@ -491,7 +498,7 @@ async function loadDetail(link) {
       mediaType: "movie",
       title: channel.title || channel.name,
       link: link,
-      backdropPath: " ",
+      posterPath: channel.logo,
       playerType: "system",
       description: description,
       genreTitle: currentProgram,
@@ -508,7 +515,7 @@ async function loadDetail(link) {
       mediaType: "movie",
       title: fallbackTitle,
       link: link,
-      backdropPath: " ",
+      posterPath: data.l,
       playerType: "system",
       description: fallbackTitle + "\n节目单\n\n节目单暂时无法加载，请稍后重试。",
       genreTitle: "暂无节目信息",
