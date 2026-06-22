@@ -1,7 +1,9 @@
 WidgetMetadata = {
   id: "forward.iptv.custom",
+  version: "1.0.0",
   title: "IPTV 直播",
   description: "支持 EPG 和分组的 M3U 直播源。",
+  author: "StreamStack",
   globalParams: [
     { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "http://your-server-ip/iptv.m3u" },
     { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "http://epg.51zmt.top:8000/e.xml" }
