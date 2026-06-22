@@ -1,7 +1,7 @@
 WidgetMetadata = {
   id: "forward.iptv.v10",
   title: "IPTV 直播",
-  version: "1.0.4",
+  version: "1.0.5",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
