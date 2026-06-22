@@ -1,5 +1,5 @@
-WidgetMetadata = {
-  id: "forward.iptv.v3",
+var WidgetMetadata = {
+  id: "forward.iptv.v4",
   title: "IPTV 直播",
   version: "1.0.0",
   requiredVersion: "0.0.1",
