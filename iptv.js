@@ -1,4 +1,4 @@
-WidgetMetadata = {
+var WidgetMetadata = {
   id: "forward.iptv.custom",
   version: "1.0.0",
   title: "IPTV 直播",
@@ -11,8 +11,8 @@ WidgetMetadata = {
   modules: [{ id: "loadList", title: "全部频道", functionName: "loadList", params: [] }]
 };
 
-let m3uCache = { url: "", data: [] };
-let epgCache = { url: "", xml: "" };
+var m3uCache = { url: "", data: [] };
+var epgCache = { url: "", xml: "" };
 
 function parseM3U(content) {
   const lines = content.split(/\r?\n/);
