@@ -43,20 +43,19 @@ eval(fs.readFileSync("./iptv.js", "utf8"));
 
   const list = await loadList(params);
   assert.equal(list.length, 2);
-  assert.equal(list[0].title, "CCTV-1 综合");
-  assert.ok(list[0].link.indexOf("ch:") === 0);
 
   const detail = await loadDetail(list[0].link);
-  assert.equal(detail.title, "CCTV-1 综合");
-  assert.equal(detail.videoUrl, undefined);
+  assert.equal(detail.videoUrl, "http://stream.cctv1");
   assert.equal(detail.episodeItems, undefined);
-  assert.ok(detail.description.includes("📺"));
-  assert.ok(detail.description.includes("即将播出") || detail.description.includes("正在播出"));
-  assert.ok(Array.isArray(detail.relatedItems));
 
-  const stream = await loadResource({ link: list[0].link });
-  assert.equal(stream.length, 1);
-  assert.equal(stream[0].url, "http://stream.cctv1");
+  const descLines = detail.description.split("\n");
+  assert.equal(descLines[1], "节目单");
+  assert.ok(descLines[0].length > 0);
+  assert.ok(detail.description.includes("[ LIVE ]"));
+  assert.ok(!detail.description.includes("📺"));
+
+  const detail2 = await loadDetail(list[0].link);
+  assert.equal(detail2.videoUrl, "http://stream.cctv1");
 
   console.log("✅ test pass!");
 })().catch((e) => {

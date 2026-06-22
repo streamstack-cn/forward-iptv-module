@@ -1,12 +1,12 @@
 WidgetMetadata = {
-  id: "forward.iptv.v8",
+  id: "forward.iptv.v9",
   title: "IPTV 直播",
-  version: "1.0.2",
+  version: "1.0.3",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
   description: "M3U 直播源，支持 HTTP/HTTPS 与 WebDAV 认证，附带 EPG 节目单。",
-  detailCacheDuration: 60,
+  detailCacheDuration: 0,
   globalParams: [
     { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "" },
     { name: "username", title: "账号（选填）", type: "input", value: "" },
@@ -14,13 +14,6 @@ WidgetMetadata = {
     { name: "epgUrl", title: "EPG 节目单链接", type: "input", value: "http://epg.51zmt.top:8000/e.xml" }
   ],
   modules: [
-    {
-      id: "loadResource",
-      title: "直播流",
-      functionName: "loadResource",
-      type: "stream",
-      params: []
-    },
     {
       id: "loadList",
       title: "全部频道",
@@ -307,48 +300,49 @@ async function getEPGPrograms(epgUrl, channelId, channelName) {
   return { current: current, upcoming: upcoming, past: past };
 }
 
+function getCurrentProgramTitle(epg) {
+  if (epg.current && epg.current.title) return epg.current.title;
+  if (epg.upcoming.length > 0 && epg.upcoming[0].title) return epg.upcoming[0].title;
+  return "暂无节目信息";
+}
+
 function formatEPGDescription(channelTitle, groupName, epg) {
-  var lines = [];
-  lines.push("━━━━━━━━━━━━━━━━━━━━");
-  lines.push("📺  " + channelTitle);
-  lines.push("📁  " + (groupName || "未分类"));
-  lines.push("━━━━━━━━━━━━━━━━━━━━");
+  var previewLine1 = getCurrentProgramTitle(epg);
+  var lines = [previewLine1, "节目单", ""];
+
+  lines.push("────────────────────────");
+  lines.push("  " + channelTitle + "  ·  " + (groupName || "未分类"));
+  lines.push("────────────────────────");
   lines.push("");
 
   if (epg.current) {
-    lines.push("▶  正在播出");
-    lines.push("");
-    lines.push("   " + formatTime(epg.current.start) + " - " + formatTime(epg.current.stop));
-    lines.push("   " + epg.current.title);
+    lines.push("[ LIVE ]  " + formatTime(epg.current.start) + " - " + formatTime(epg.current.stop));
+    lines.push(epg.current.title);
     lines.push("");
   } else {
-    lines.push("▶  当前时段暂无匹配节目");
+    lines.push("[ LIVE ]  当前时段暂无匹配节目");
     lines.push("");
   }
 
   if (epg.upcoming.length > 0) {
-    lines.push("────────────────────");
-    lines.push("⏭  即将播出");
-    lines.push("────────────────────");
-    var limit = Math.min(epg.upcoming.length, 8);
+    lines.push("即将播出");
+    var limit = Math.min(epg.upcoming.length, 10);
     for (var u = 0; u < limit; u++) {
       var next = epg.upcoming[u];
-      lines.push("   " + formatTime(next.start) + "  " + next.title);
+      lines.push("  " + formatTime(next.start) + "    " + next.title);
     }
     if (epg.upcoming.length > limit) {
-      lines.push("   … 还有 " + (epg.upcoming.length - limit) + " 档节目");
+      lines.push("  ... 还有 " + (epg.upcoming.length - limit) + " 档");
     }
     lines.push("");
   }
 
   if (epg.past.length > 0) {
-    lines.push("────────────────────");
-    lines.push("⏮  已播出");
-    lines.push("────────────────────");
-    var pastStart = Math.max(0, epg.past.length - 3);
+    lines.push("已播出");
+    var pastStart = Math.max(0, epg.past.length - 4);
     for (var p = pastStart; p < epg.past.length; p++) {
       var prev = epg.past[p];
-      lines.push("   " + formatTime(prev.start) + "  " + prev.title);
+      lines.push("  " + formatTime(prev.start) + "    " + prev.title);
     }
   }
 
@@ -359,28 +353,13 @@ function formatEPGDescription(channelTitle, groupName, epg) {
   return lines.join("\n");
 }
 
-async function loadResource(params) {
-  params = params || {};
-  var data = decodeLink(params.link);
-  if (!data) throw new Error("无法识别频道，请返回列表重新选择");
-
-  var channel = await resolveChannel(data, true);
-  if (!channel || !channel.url) throw new Error("未找到该频道的直播地址");
-
-  return [
-    {
-      name: channel.title || channel.name || "直播",
-      description: (channel.group || "直播") + " · 实时流",
-      url: channel.url
-    }
-  ];
-}
-
 async function loadDetail(link) {
   var data = decodeLink(link);
   if (!data) return null;
 
   var channel = await resolveChannel(data, true);
+  if (!channel || !channel.url) return null;
+
   var epg = await getEPGPrograms(data.e, channel.id, channel.name);
   var description = formatEPGDescription(channel.title || channel.name, channel.group, epg);
 
@@ -405,6 +384,8 @@ async function loadDetail(link) {
     title: channel.title || channel.name,
     link: link,
     posterPath: channel.logo,
+    backdropPath: channel.logo,
+    videoUrl: channel.url,
     playerType: "system",
     description: description,
     genreTitle: channel.group,
