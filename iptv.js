@@ -1,7 +1,7 @@
 WidgetMetadata = {
   id: "forward.iptv.v11",
   title: "IPTV 直播",
-  version: "1.0.6",
+  version: "1.0.7",
   requiredVersion: "0.0.1",
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
@@ -100,7 +100,6 @@ function normalizeName(name) {
     .toUpperCase();
 }
 
-}
 
 async function fetchM3UContent(url, username, password) {
   if (!url) throw new Error("请先在模块设置中填写 M3U 订阅链接");
