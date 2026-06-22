@@ -6,7 +6,7 @@ WidgetMetadata = {
   author: "StreamStack",
   site: "https://github.com/streamstack-cn/forward-iptv-module",
   description: "M3U 直播源，支持 HTTP/HTTPS 与 WebDAV 认证，附带 EPG 节目单。",
-  detailCacheDuration: 60,
+  detailCacheDuration: 300,
   globalParams: [
     { name: "m3uUrl", title: "M3U 订阅链接", type: "input", value: "" },
     { name: "username", title: "账号（选填）", type: "input", value: "" },
@@ -198,6 +198,7 @@ function buildChannelItem(channel, params) {
     id: makeChannelId(channel),
     type: "url",
     title: channel.title,
+    coverUrl: channel.logo,
     posterPath: channel.logo,
     description: channel.group,
     link: encodeLink(linkData)
@@ -253,12 +254,16 @@ function getNowStr() {
   );
 }
 
+function normalizeId(str) {
+  return String(str || "").toLowerCase().replace(/[\s\-_\.]/g, "");
+}
+
 function matchEPGChannel(channelId, channelName, channelTitle, xmlChannelId) {
   if (!xmlChannelId) return false;
-  if (channelId && xmlChannelId === channelId) return true;
-  if (channelName && xmlChannelId === channelName) return true;
-  if (channelTitle && xmlChannelId === channelTitle) return true;
-  if (channelName && channelTitle && xmlChannelId === channelName) return true;
+  var xmlNorm = normalizeId(xmlChannelId);
+  if (channelId && normalizeId(channelId) === xmlNorm) return true;
+  if (channelName && normalizeId(channelName) === xmlNorm) return true;
+  if (channelTitle && normalizeId(channelTitle) === xmlNorm) return true;
   return false;
 }
 
@@ -423,7 +428,6 @@ async function loadDetail(link) {
       type: "url",
       title: channel.title || channel.name,
       link: link,
-      posterPath: channel.logo,
       backdropPath: channel.logo,
       videoUrl: channel.url,
       playerType: "system",
@@ -438,7 +442,7 @@ async function loadDetail(link) {
       type: "url",
       title: data.t || data.n,
       link: link,
-      posterPath: data.l,
+      backdropPath: data.l,
       videoUrl: data.c,
       playerType: "system",
       description: (data.t || data.n || "直播") + "\n节目单\n\n节目单暂时无法加载",
